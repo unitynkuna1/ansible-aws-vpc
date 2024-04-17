@@ -172,7 +172,27 @@
       register: db01_out
 
     - debug:
-        var: db01_out
+        var: db01_out.tagged_instances[0].id
+
+    - name: Creating a Load Balancer
+      local_action:
+        module: ec2_elb_lb
+        name: "vprofile-elb"
+        region: "{{region}}"
+        state: "{{state}}"
+        instance_ids:
+          - "{{ web01_out.tagged_instances[0].id }}"
+        purge_instance_ids: true
+        security_group_ids: "{{ vproELBSG_out.group_id }}"
+        subnets:
+          - "{{ pubsub1id }}"
+          - "{{ pubsub2id }}"
+          - "{{ pubsub3id }}"
+        listeners:
+          - protocol: http # options are http, https, ssl & tcp
+            load_balancer_port: 80
+            instance_port: 80
+
 
 
 
