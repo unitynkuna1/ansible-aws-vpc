@@ -39,7 +39,7 @@
         dest: /tmp/tomcat8 
         remote_src: yes 
         list_files: yes 
-      register: unarchieve_info 
+      register: unarchive_info 
 
     - debug: 
         msg: "{{unarchive_info.files[0].split('/')[0]}}"
@@ -110,7 +110,60 @@
           when: archive_info.changed  
           loop: 
             - /usr/local/tomcat8/webapps/ROOT
-            
+            - /usr/local/tomcat8/webapps/ROOT.war
+          tags: 
+            - deploy 
+
+        - name: Try deploy artifact else restore from previous old_ROOT
+          block: 
+            - name: Deploy vprofile artifact
+              copy: 
+                src: files/ROOT.war 
+                dest: /usr/local/tomcat8/webapps/ROOT.war 
+              register: deploy_info 
+              tags: 
+                - deploy 
+          rescue:
+            - shell: cp -r old_ROOT ROOT
+              args: 
+                chdir: /usr/local/tomcat8/webapps/
+
+      rescue: 
+        - name: Start tomcat8 svc 
+          service: 
+            name: tomcat8 
+            state: started 
+
+    - name: Start tomcat8 svc 
+      service: 
+        name: tomcat8 
+        state: started 
+      when: deploy_info.changed 
+      tags: 
+        - deploy 
+
+    - name: Wait until ROOT.war is extracted to ROOT directory 
+      wait_for:
+        path: /usr/local/tomcat8/webapps/ROOT
+      tags: 
+        - deploy 
+
+    - name: Deploy web configuration file 
+      template: 
+        src: templates/application.j2 
+        dest: /usr/local/tomcat8/webapps/ROOT/WEB-INF/classes/application.properties
+        force: yes 
+      notify: 
+        - Restart Tomcat 
+      tags: 
+        - deploy 
+
+  handlers:
+    - name: Restart Tomcat 
+      service: 
+        name: tomcat8 
+        state: restarted 
+
 
 
 
